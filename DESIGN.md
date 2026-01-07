@@ -317,7 +317,7 @@ CREATE INDEX idx_user_profiles_active
 }
 ```
 
-> Note: `version` starts at 1 and is incremented each time the user's feed is recomputed. The ETag returned to client is `"{candidates_version}x{feed_version}"` (e.g., "2x3").
+> Note: `version` starts at 1 and is incremented each time the user's feed is recomputed. The ETag returned to client is `"{candidates_version}x{feed_version}x{cursor}"` (e.g., "2x3x0" for first page, "2x3x5" for second page).
 
 ### 4.3 S3 Storage
 
@@ -345,6 +345,8 @@ CREATE INDEX idx_user_profiles_active
 | `If-None-Match` | No | ETag from previous response (empty on first request) |
 
 > **Caching Flow:** On first request, client has no ETag → server returns feed with `ETag` and `Cache-Control: private, max-age=30`. Client caches response for 30 seconds. On subsequent requests within 30s, client uses local cache. After 30s, client sends `If-None-Match` with cached ETag → server returns 304 if unchanged, or 200 with new feed.
+>
+> **Note:** The ETag includes the cursor position, so each page has a unique ETag (e.g., "2x3x0" for page 1, "2x3x5" for page 2). This ensures that refreshing page 2 with page 2's ETag returns 304 correctly, while requesting page 2 with page 1's ETag returns 200 with fresh data.
 
 #### Response — Success (200 OK)
 
@@ -379,13 +381,17 @@ CREATE INDEX idx_user_profiles_active
 | Header | Value | Description |
 |--------|-------|-------------|
 | `Cache-Control` | `private, max-age=30` | Client-side cache hint |
-| `ETag` | `"2x3"` | Version hash: `{candidates_version}x{feed_version}` |
+| `ETag` | `"2x3x0"` | Version hash: `{candidates_version}x{feed_version}x{cursor}` |
 | `X-Feed-Type` | `personalized` or `fallback` | Indicates feed source |
 | `X-Request-ID` | `{request_id}` | Echoed for tracing |
 
 #### Response — Not Modified (304)
 
-Returned when `If-None-Match` header matches current ETag.
+Returned when **all** of the following conditions are met:
+1. `If-None-Match` header is provided
+2. ETag matches current feed version **including cursor**
+
+> **Design Decision:** The ETag includes the cursor (`{candidates_version}x{feed_version}x{cursor}`), so each page has a unique ETag. This enables correct 304 behavior for all requests: refreshing page 2 returns 304 only when page 2's specific ETag matches. Requesting page 2 with page 1's ETag returns 200 because they are different ETags.
 
 #### Response — Fallback Scenarios
 
@@ -615,14 +621,20 @@ Each cache entry maintains a simple version number, starting at 1 and incremente
 
 **ETag Composition:**
 
-The API returns an ETag header composed of both versions, separated by "x":
+The API returns an ETag header composed of three components, separated by "x":
 
 ```json
-ETag: "{candidates_version}x{feed_version}"
+ETag: "{candidates_version}x{feed_version}x{cursor}"
 
-Example: "2x3" means:
+Example: "2x3x0" means:
   - content_candidates version = 2
   - user feed version = 3
+  - cursor position = 0 (first page)
+
+Example: "2x3x5" means:
+  - content_candidates version = 2
+  - user feed version = 3
+  - cursor position = 5 (second page, if limit=5)
 ```
 
 **Cache Structures:**
@@ -643,11 +655,11 @@ tenant:{id}:user:{hash}:feed = {
 
 **Validation Flow:**
 
-1. Client sends `If-None-Match: "2x3"` header
-2. Server parses: candidates_version=2, feed_version=3
-3. Server checks current versions in cache
-4. If both match → return 304 Not Modified
-5. If mismatch → return new feed with updated ETag
+1. Client sends `If-None-Match: "2x3x5"` header (for page 2, cursor=5)
+2. Server parses ETag: candidates_version=2, feed_version=3, cursor=5
+3. Server builds expected ETag for current request using current versions + cursor
+4. If ETags match → return 304 Not Modified
+5. If mismatch → return new feed with updated ETag (e.g., "3x4x5" if versions changed)
 
 **Database Sync (Optional):**
 
@@ -1048,7 +1060,7 @@ X-User-ID: sha256_abc123def456
 HTTP/1.1 200 OK
 Content-Type: application/json
 Cache-Control: private, max-age=30
-ETag: "2x3"
+ETag: "2x3x0"
 X-Feed-Type: personalized
 
 {

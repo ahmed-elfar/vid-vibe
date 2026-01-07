@@ -1,6 +1,7 @@
 package com.xay.videos_recommender.service;
 
 import com.xay.videos_recommender.cache.AppCache;
+import com.xay.videos_recommender.mapper.VideoMapper;
 import com.xay.videos_recommender.model.domain.ContentCandidate;
 import com.xay.videos_recommender.model.entity.Video;
 import com.xay.videos_recommender.repository.VideoRepository;
@@ -10,7 +11,6 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,7 +21,8 @@ public class ContentService {
 
     private final VideoRepository videoRepository;
     private final AppCache appCache;
-    
+    private final VideoMapper videoMapper;
+
     // Version tracking per tenant (in production, this would be in Redis)
     private final Map<Long, Integer> candidateVersions = new ConcurrentHashMap<>();
 
@@ -45,7 +46,7 @@ public class ContentService {
 
     private List<ContentCandidate> loadContentCandidates(Long tenantId) {
         List<Video> videos = videoRepository.findByTenantIdAndStatus(tenantId, "active");
-        
+
         return videos.stream()
                 .map(this::toContentCandidate)
                 .sorted((a, b) -> Double.compare(b.baseScore().doubleValue(), a.baseScore().doubleValue()))
@@ -53,35 +54,17 @@ public class ContentService {
     }
 
     private ContentCandidate toContentCandidate(Video video) {
-        return ContentCandidate.builder()
-                .videoId(video.getId())
-                .externalId(video.getExternalId())
-                .category(video.getCategory())
-                .tags(parseTags(video.getTags()))
-                .baseScore(calculateBaseScore(video))
-                .editorialBoost(video.getEditorialBoost() != null ? video.getEditorialBoost() : BigDecimal.ONE)
-                .freshnessScore(calculateFreshnessScore(video))
-                .engagementScore(calculateEngagementScore(video))
-                .maturityRating(video.getMaturityRating())
-                .build();
+        BigDecimal freshnessScore = calculateFreshnessScore(video);
+        BigDecimal engagementScore = calculateEngagementScore(video);
+        BigDecimal baseScore = calculateBaseScore(freshnessScore, engagementScore);
+
+        return videoMapper.toContentCandidate(video, baseScore, freshnessScore, engagementScore);
     }
 
-    private List<String> parseTags(String tags) {
-        if (tags == null || tags.isBlank() || tags.equals("[]")) {
-            return List.of();
-        }
-        // Simple parsing for JSON array like ["tag1", "tag2"]
-        String cleaned = tags.replaceAll("[\\[\\]\"]", "");
-        return Arrays.stream(cleaned.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .toList();
-    }
-
-    private BigDecimal calculateBaseScore(Video video) {
+    private BigDecimal calculateBaseScore(BigDecimal freshnessScore, BigDecimal engagementScore) {
         // Combine engagement and freshness for base score
-        double engagement = calculateEngagementScore(video).doubleValue();
-        double freshness = calculateFreshnessScore(video).doubleValue();
+        double engagement = engagementScore.doubleValue();
+        double freshness = freshnessScore.doubleValue();
         return BigDecimal.valueOf(engagement * 0.6 + freshness * 0.4);
     }
 
@@ -100,8 +83,8 @@ public class ContentService {
         long views = video.getViewCount() != null ? video.getViewCount() : 0;
         long likes = video.getLikeCount() != null ? video.getLikeCount() : 0;
         long shares = video.getShareCount() != null ? video.getShareCount() : 0;
-        double avgWatch = video.getAvgWatchPercentage() != null 
-                ? video.getAvgWatchPercentage().doubleValue() 
+        double avgWatch = video.getAvgWatchPercentage() != null
+                ? video.getAvgWatchPercentage().doubleValue()
                 : 0.5;
 
         // Simple engagement formula

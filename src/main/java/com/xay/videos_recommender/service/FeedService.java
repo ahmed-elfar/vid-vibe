@@ -16,6 +16,7 @@ import com.xay.videos_recommender.util.CursorUtil;
 import com.xay.videos_recommender.util.ETagUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -30,8 +31,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class FeedService {
 
-    private static final int TTL_HINT_SECONDS = 30;
-    private static final long TIMEOUT_MS = 600;
+    @Value("${app.feed.ttl-hint-seconds}")
+    private int ttlHintSeconds;
+
+    @Value("${app.feed.timeout-ms}")
+    private long timeoutMs;
 
     private final TenantService tenantService;
     private final ContentService contentService;
@@ -40,14 +44,14 @@ public class FeedService {
     private final FeedCacheManager feedCacheManager;
     private final VideoRepository videoRepository;
 
-    public FeedResponse generateFeed(Long tenantId, String userId, int limit, String cursor, String ifNoneMatch) {
+    public Optional<FeedResponse> generateFeed(Long tenantId, String userId, int limit, String cursor, String ifNoneMatch) {
         long startTime = System.currentTimeMillis();
         int offset = CursorUtil.decode(cursor);
 
         // 1. Check feature flag
         if (!tenantService.isPersonalizationEnabled(tenantId) ||
             !tenantService.isUserInRollout(tenantId, userId)) {
-            return generateFallbackFeed(tenantId, limit, offset, "fallback");
+            return generateFallbackFeed(tenantId, limit, offset, "fallback", ifNoneMatch);
         }
 
         // 2. Check cache
@@ -56,16 +60,16 @@ public class FeedService {
         
         if (cachedFeed.isPresent()) {
             CachedFeed feed = cachedFeed.get();
-            String currentETag = ETagUtil.generate(candidatesVersion, feed.version());
             
             // Check if client's ETag matches (304 Not Modified scenario)
-            if (ifNoneMatch != null && ifNoneMatch.equals(currentETag)) {
-                // Return empty response - controller will handle 304
-                return null;
+            // ETag includes cursor, so each page has unique ETag
+            if (ETagUtil.matches(ifNoneMatch, candidatesVersion, feed.version(), offset)) {
+                return Optional.empty();
             }
             
             // Return cached feed with pagination
-            return buildResponseFromCachedFeed(feed, limit, offset, currentETag);
+            String etag = ETagUtil.generate(candidatesVersion, feed.version(), offset);
+            return Optional.of(buildResponseFromCachedFeed(feed, limit, offset, etag));
         }
 
         // 3. Get user signals (cold-start check)
@@ -73,20 +77,20 @@ public class FeedService {
         
         if (userSignals.watchCount() == 0) {
             // Cold-start user - return non-personalized feed
-            return generateFallbackFeed(tenantId, limit, offset, "cold_start");
+            return generateFallbackFeed(tenantId, limit, offset, "cold_start", ifNoneMatch);
         }
 
         // 4. Get content candidates
         List<ContentCandidate> candidates = contentService.getContentCandidates(tenantId);
         
         if (candidates.isEmpty()) {
-            return generateEmptyFeed("no_content");
+            //Should we use the demographic information and get content from other tenants?
+            return Optional.of(generateEmptyFeed("no_content"));
         }
 
         // 5. Check timeout
-        if (System.currentTimeMillis() - startTime > TIMEOUT_MS) {
+        if (System.currentTimeMillis() - startTime > timeoutMs) {
             log.warn("Feed generation timeout for tenant {} user {}", tenantId, userId);
-            return generateFallbackFeed(tenantId, limit, offset, "timeout_fallback");
         }
 
         // 6. Rank candidates
@@ -95,7 +99,7 @@ public class FeedService {
 
         // 7. Build and cache feed
         List<FeedItem> feedItems = buildFeedItems(tenantId, rankedVideos);
-        int feedVersion = candidatesVersion; // Use candidates version as feed version
+        int feedVersion = 1;
         
         CachedFeed newFeed = CachedFeed.builder()
                 .version(feedVersion)
@@ -106,26 +110,32 @@ public class FeedService {
         feedCacheManager.putFeed(tenantId, userId, newFeed);
 
         // 8. Return paginated response
-        String etag = ETagUtil.generate(candidatesVersion, feedVersion);
-        return buildPaginatedResponse(feedItems, limit, offset, "personalized", etag);
+        String etag = ETagUtil.generate(candidatesVersion, feedVersion, offset);
+        return Optional.of(buildPaginatedResponse(feedItems, limit, offset, "personalized", etag));
     }
 
-    private FeedResponse generateFallbackFeed(Long tenantId, int limit, int offset, String feedType) {
+    private Optional<FeedResponse> generateFallbackFeed(Long tenantId, int limit, int offset, String feedType, String ifNoneMatch) {
+        int version = contentService.getContentCandidatesVersion(tenantId);
+
+        // Check ETag for fallback feeds too
+        if (ETagUtil.matches(ifNoneMatch, version, 0, offset)) {
+            return Optional.empty();
+        }
+
         List<ContentCandidate> candidates = contentService.getContentCandidates(tenantId);
         List<RankedVideo> rankedVideos = rankingService.rankWithoutPersonalization(candidates, candidates.size());
         List<FeedItem> feedItems = buildFeedItems(tenantId, rankedVideos);
-        
-        int version = contentService.getContentCandidatesVersion(tenantId);
-        String etag = ETagUtil.generate(version, 0);
-        
-        return buildPaginatedResponse(feedItems, limit, offset, feedType, etag);
+
+        String eTag = ETagUtil.generate(version, 0, offset);
+        return Optional.of(buildPaginatedResponse(feedItems, limit, offset, feedType, eTag));
     }
 
     private FeedResponse generateEmptyFeed(String feedType) {
         return new FeedResponse(
                 List.of(),
                 new PaginationInfo(null, false),
-                new FeedMeta(feedType, Instant.now(), TTL_HINT_SECONDS)
+                new FeedMeta(feedType, Instant.now(), ttlHintSeconds),
+                ETagUtil.generate(0, 0, 0)
         );
     }
 
@@ -137,14 +147,15 @@ public class FeedService {
     private FeedResponse buildPaginatedResponse(List<FeedItem> allItems, int limit, int offset, String feedType, String etag) {
         int endIndex = Math.min(offset + limit, allItems.size());
         List<FeedItem> pageItems = allItems.subList(Math.min(offset, allItems.size()), endIndex);
-        
+
         boolean hasMore = endIndex < allItems.size();
         String nextCursor = hasMore ? CursorUtil.encode(endIndex) : null;
 
         return new FeedResponse(
                 pageItems,
                 new PaginationInfo(nextCursor, hasMore),
-                new FeedMeta(feedType, Instant.now(), TTL_HINT_SECONDS)
+                new FeedMeta(feedType, Instant.now(), ttlHintSeconds),
+                etag
         );
     }
 
@@ -153,7 +164,7 @@ public class FeedService {
         List<Long> videoIds = rankedVideos.stream()
                 .map(RankedVideo::videoId)
                 .toList();
-        
+
         Map<Long, Video> videoMap = videoRepository.findAllById(videoIds).stream()
                 .collect(Collectors.toMap(Video::getId, Function.identity()));
 

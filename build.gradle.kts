@@ -22,6 +22,25 @@ repositories {
     mavenCentral()
 }
 
+// Configure test-integration source set
+sourceSets {
+    create("integrationTest") {
+        java.srcDir("src/test-integration/java")
+        resources.srcDir("src/test-integration/resources")
+        compileClasspath += sourceSets.main.get().output + sourceSets.test.get().output
+        runtimeClasspath += sourceSets.main.get().output + sourceSets.test.get().output
+    }
+}
+
+// Extend test configurations for integration tests
+val integrationTestImplementation by configurations.getting {
+    extendsFrom(configurations.testImplementation.get())
+}
+
+val integrationTestRuntimeOnly: Configuration? by configurations.getting {
+    extendsFrom(configurations.testRuntimeOnly.get())
+}
+
 dependencies {
     // Spring Boot starters
     implementation("org.springframework.boot:spring-boot-starter-web")
@@ -47,8 +66,30 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation(platform("org.junit:junit-bom:$junitVersion"))
     testImplementation("org.junit.jupiter:junit-jupiter")
+
+    // Integration test Lombok support
+    "integrationTestCompileOnly"("org.projectlombok:lombok:$lombokVersion")
+    "integrationTestAnnotationProcessor"("org.projectlombok:lombok:$lombokVersion")
 }
 
 tasks.test {
     useJUnitPlatform()
+}
+
+// Integration test task
+val integrationTest by tasks.registering(Test::class) {
+    description = "Runs integration tests."
+    group = "verification"
+
+    testClassesDirs = sourceSets["integrationTest"].output.classesDirs
+    classpath = sourceSets["integrationTest"].runtimeClasspath
+
+    useJUnitPlatform()
+
+    shouldRunAfter(tasks.test)
+}
+
+// Include integration tests in check lifecycle
+tasks.check {
+    dependsOn(integrationTest)
 }

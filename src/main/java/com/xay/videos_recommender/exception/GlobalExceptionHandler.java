@@ -4,6 +4,7 @@ import com.xay.videos_recommender.model.dto.response.ErrorResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
@@ -23,6 +24,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleInvalidRequest(InvalidRequestException ex, WebRequest request) {
         log.warn("Invalid request: {}", ex.getMessage());
         ErrorResponse error = new ErrorResponse("INVALID_REQUEST", ex.getMessage(), null);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ErrorResponse> handleMissingHeader(MissingRequestHeaderException ex, WebRequest request) {
+        log.warn("Missing required header: {}", ex.getHeaderName());
+        ErrorResponse error = new ErrorResponse("MISSING_HEADER", "Required header '" + ex.getHeaderName() + "' is missing", null);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 

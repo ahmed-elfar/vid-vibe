@@ -47,3 +47,20 @@ logging:
   level:
     root: INFO
     com.xay.videos_recommender: DEBUG
+
+# Application configuration
+app:
+  feed:
+    ttl-hint-seconds: 30
+    timeout-ms: 600
+  cache:
+    tenant:
+      max-size: 120
+    user-profile:
+      max-size: 100000
+      expire-after-write-minutes: 60
+    content-candidates:
+      max-size: 120
+    feed:
+      max-size: 100000
+      expire-after-write-minutes: 60
