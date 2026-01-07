@@ -342,7 +342,9 @@ CREATE INDEX idx_user_profiles_active
 | `X-Tenant-ID` | Yes | Tenant identifier |
 | `X-User-ID` | Yes | Hashed user identifier (SHA-256) |
 | `X-Request-ID` | No | Request tracing ID |
-| `If-None-Match` | Yes | ETag for conditional requests (required for cache validation) |
+| `If-None-Match` | No | ETag from previous response (empty on first request) |
+
+> **Caching Flow:** On first request, client has no ETag → server returns feed with `ETag` and `Cache-Control: private, max-age=30`. Client caches response for 30 seconds. On subsequent requests within 30s, client uses local cache. After 30s, client sends `If-None-Match` with cached ETag → server returns 304 if unchanged, or 200 with new feed.
 
 #### Response — Success (200 OK)
 
@@ -370,7 +372,7 @@ CREATE INDEX idx_user_profiles_active
 }
 ```
 
-> **Note on Pagination:** We use cursor-based pagination instead of limit/offset. The cursor is a base64-encoded token containing position state. Benefits: (1) Consistent results even when content changes between requests, (2) O(1) performance vs O(n) for large offsets, (3) Handles real-time feed updates gracefully.
+> **Note on Pagination:** We use cursor-based pagination instead of limit/offset. The cursor is an opaque, base64-encoded token containing position and feed snapshot state (e.g., last item score and ranking version). This approach provides (1) consistent pagination even as new content arrives, (2) better performance by avoiding large offset scans, and (3) a stable user experience for continuously updated, ranked feeds.
 
 **Response Headers:**
 
