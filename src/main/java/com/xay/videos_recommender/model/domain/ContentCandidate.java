@@ -1,8 +1,11 @@
 package com.xay.videos_recommender.model.domain;
 
+import lombok.Builder;
+
 import java.math.BigDecimal;
 import java.util.List;
 
+@Builder(toBuilder = true)
 public record ContentCandidate(
         Long videoId,
         String externalId,
@@ -14,4 +17,3 @@ public record ContentCandidate(
         BigDecimal engagementScore,
         String maturityRating
 ) {}
-

@@ -1,6 +1,7 @@
 val caffeineVersion = "3.2.3"
 val lombokVersion = "1.18.42"
 val junitVersion = "5.10.0"
+val springdocVersion = "2.8.15"
 
 plugins {
     id("java")
@@ -26,8 +27,10 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
-    implementation("org.springframework.boot:spring-boot-starter-cache")
     implementation("org.springframework.boot:spring-boot-starter-validation")
+
+    // OpenAPI / Swagger
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springdocVersion")
 
     // Database
     implementation("org.flywaydb:flyway-core")

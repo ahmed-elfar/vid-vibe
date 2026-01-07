@@ -8,9 +8,6 @@ import java.util.List;
 
 @Repository
 public interface VideoRepository extends JpaRepository<Video, Long> {
-
+    
     List<Video> findByTenantIdAndStatus(Long tenantId, String status);
-
-    List<Video> findByTenantId(Long tenantId);
 }
-

@@ -4,4 +4,3 @@ public record PaginationInfo(
         String nextCursor,
         boolean hasMore
 ) {}
-

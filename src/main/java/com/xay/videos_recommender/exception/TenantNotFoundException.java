@@ -1,5 +1,8 @@
 package com.xay.videos_recommender.exception;
 
+import lombok.Getter;
+
+@Getter
 public class TenantNotFoundException extends RuntimeException {
 
     private final Long tenantId;
@@ -8,9 +11,4 @@ public class TenantNotFoundException extends RuntimeException {
         super("Tenant not found: " + tenantId);
         this.tenantId = tenantId;
     }
-
-    public Long getTenantId() {
-        return tenantId;
-    }
 }
-

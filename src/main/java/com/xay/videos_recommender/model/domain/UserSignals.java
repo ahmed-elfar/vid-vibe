@@ -1,12 +1,15 @@
 package com.xay.videos_recommender.model.domain;
 
+import lombok.Builder;
+
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
+@Builder(toBuilder = true)
 public record UserSignals(
         Long tenantId,
-        String userId,
+        String hashedUserId,
         int watchCount,
         long totalWatchTimeMs,
         BigDecimal avgWatchPercentage,
@@ -15,4 +18,3 @@ public record UserSignals(
         Map<String, Double> categoryAffinities,
         List<String> lastWatchedIds
 ) {}
-

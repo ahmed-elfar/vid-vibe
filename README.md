@@ -18,6 +18,18 @@ gradlew.bat bootRun
 
 The application will start at `http://localhost:8080`
 
+## Swagger UI
+
+Use the Swagger UI to explore and test all API endpoints interactively:
+
+- **Swagger UI**: [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
+- **OpenAPI JSON**: [http://localhost:8080/api-docs](http://localhost:8080/api-docs)
+
+The Swagger UI provides:
+- Complete API documentation with request/response schemas
+- Interactive "Try it out" functionality to test endpoints directly
+- Request/response examples
+
 ## API Endpoints
 
 ### Get Personalized Feed
@@ -25,7 +37,7 @@ The application will start at `http://localhost:8080`
 ```bash
 curl -X GET "http://localhost:8080/v1/feed?limit=20" \
   -H "X-Tenant-ID: 1" \
-  -H "X-User-ID: user123"
+  -H "X-User-ID: a4f2e8c1b9d3e7f6"
 ```
 
 ### Post User Events
@@ -33,7 +45,7 @@ curl -X GET "http://localhost:8080/v1/feed?limit=20" \
 ```bash
 curl -X POST "http://localhost:8080/v1/events" \
   -H "X-Tenant-ID: 1" \
-  -H "X-User-ID: user123" \
+  -H "X-User-ID: a4f2e8c1b9d3e7f6" \
   -H "Content-Type: application/json" \
   -d '{
     "events": [
@@ -72,8 +84,7 @@ src/main/java/com/xay/videos_recommender/
 │   ├── RankingService.java
 │   ├── UserProfileService.java
 │   ├── ContentService.java
-│   ├── TenantService.java
-│   ├── FeatureFlagService.java
+│   ├── TenantService.java    # Includes feature flag logic
 │   └── EventQueueService.java
 ├── storage/                # Storage interfaces + implementations
 │   ├── ArchiveStorage.java       # Interface

@@ -5,4 +5,3 @@ public record ErrorResponse(
         String message,
         String requestId
 ) {}
-

@@ -7,4 +7,3 @@ public record FeedMeta(
         Instant generatedAt,
         int ttlHintSeconds
 ) {}
-
