@@ -62,10 +62,10 @@ public interface FeedApi {
             @Parameter(description = "ETag from previous response for conditional request", example = "\"1x1\"")
             @RequestHeader(value = "If-None-Match", required = false) String ifNoneMatch,
 
-            @Parameter(description = "Maximum number of items to return", example = "20")
-            @RequestParam(defaultValue = "20") int limit,
+            @Parameter(description = "Maximum number of items to return", example = "5")
+            @RequestParam(defaultValue = "5") int limit,
 
-            @Parameter(description = "Pagination cursor from previous response", example = "MjA=")
+            @Parameter(description = "Pagination cursor from previous response", example = "NQ")
             @RequestParam(required = false) String cursor
     );
 }
