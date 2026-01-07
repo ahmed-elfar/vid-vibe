@@ -6,6 +6,7 @@ import com.xay.videos_recommender.model.domain.ContentCandidate;
 import com.xay.videos_recommender.model.entity.Video;
 import com.xay.videos_recommender.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ContentService {
@@ -28,14 +30,21 @@ public class ContentService {
 
     public List<ContentCandidate> getContentCandidates(Long tenantId) {
         return appCache.getContentCandidates(tenantId)
+                .map(candidates -> {
+                    log.debug("Content candidates cache HIT for tenant {}, {} items", tenantId, candidates.size());
+                    return candidates;
+                })
                 .orElseGet(() -> {
+                    log.debug("Content candidates cache MISS for tenant {}", tenantId);
                     List<ContentCandidate> candidates = loadContentCandidates(tenantId);
                     appCache.putContentCandidates(tenantId, candidates);
+                    log.debug("Loaded {} content candidates for tenant {}", candidates.size(), tenantId);
                     return candidates;
                 });
     }
 
     public void rebuildContentCandidates(Long tenantId) {
+        log.info("Rebuilding content candidates for tenant {}", tenantId);
         appCache.evictContentCandidates(tenantId);
         candidateVersions.merge(tenantId, 1, Integer::sum);
     }

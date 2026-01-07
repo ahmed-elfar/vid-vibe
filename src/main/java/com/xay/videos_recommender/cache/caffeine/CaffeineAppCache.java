@@ -6,18 +6,25 @@ import com.xay.videos_recommender.cache.AppCache;
 import com.xay.videos_recommender.model.domain.ContentCandidate;
 import com.xay.videos_recommender.model.entity.Tenant;
 import com.xay.videos_recommender.model.entity.UserProfile;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.binder.cache.CaffeineCacheMetrics;
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class CaffeineAppCache implements AppCache {
+
+    private final MeterRegistry meterRegistry;
 
     @Value("${app.cache.tenant.max-size}")
     private int tenantMaxSize;
@@ -52,6 +59,11 @@ public class CaffeineAppCache implements AppCache {
                 .maximumSize(contentCandidatesMaxSize)
                 .recordStats()
                 .build();
+
+        // Register caches with Micrometer for metrics
+        CaffeineCacheMetrics.monitor(meterRegistry, tenantCache, "tenant", Collections.emptyList());
+        CaffeineCacheMetrics.monitor(meterRegistry, userProfileCache, "userProfile", Collections.emptyList());
+        CaffeineCacheMetrics.monitor(meterRegistry, contentCandidatesCache, "contentCandidates", Collections.emptyList());
 
         log.info("CaffeineAppCache initialized: tenantMaxSize={}, userProfileMaxSize={}, " +
                         "userProfileExpireMinutes={}, contentCandidatesMaxSize={}",

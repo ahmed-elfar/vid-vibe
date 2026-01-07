@@ -88,15 +88,15 @@ The system is organized into five distinct layers:
 
 **Step-by-step flow for `GET /v1/feed` requests:**
 
-| Step | Action | On Success | On Failure/Skip |
-|------|--------|------------|-----------------|
-| **1** | Check Feature Flag | Continue to step 2 | Return top N from content_candidates (non-personalized) |
-| **2** | Check Feed Cache | If hit + version match → Return cached feed | Continue to step 3 |
-| **3** | Get User Profile from cache | Continue to step 4 | Query PostgreSQL, then continue |
-| **4** | Cold-start check | If profile exists → Continue to step 5 | Return top N from content_candidates |
-| **5** | Get Content Candidates | Continue to step 6 | — |
-| **6** | Rank & Score using user profile | Continue to step 7 | — |
-| **7** | Cache result & Return | Return personalized feed | If total time > 550ms → Return non-personalized (timeout fallback) |
+| Step | Action | On Success | On Failure/Skip                                                  |
+|------|--------|------------|------------------------------------------------------------------|
+| **1** | Check Feature Flag | Continue to step 2 | Return top N from content_candidates (non-personalized)          |
+| **2** | Check Feed Cache | If hit + version match → Return cached feed | Continue to step 3                                               |
+| **3** | Get User Profile from cache | Continue to step 4 | Query PostgreSQL, then continue                                  |
+| **4** | Cold-start check | If profile exists → Continue to step 5 | Return top N from content_candidates                             |
+| **5** | Get Content Candidates | Continue to step 6 | —                                                                |
+| **6** | Rank & Score using user profile | Continue to step 7 | —                                                                |
+| **7** | Cache result & Return | Return personalized feed | If total time > 600ms → Return non-personalized (timeout fallback) |
 
 **Flowchart:**
 
@@ -670,7 +670,7 @@ For consistency tracking, we store `config_version` in the `tenants` table. This
 UPDATE tenants SET config_version = config_version + 1 WHERE id = ?
 ```
 
-The background worker uses this to detect which tenants need content_candidates rebuilt.
+After a successful CMS update, an async task is triggered immediately to rebuild the affected tenant's `content_candidates` cache. This is event-driven (not polling) — the task is lightweight and only affects the updated tenant.
 
 ### 6.5 Cache Warming on Startup
 
@@ -788,7 +788,20 @@ CMS Config Update
 │ Evict Redis     │          │ Evict Redis     │
 │ tenant:config   │          │ content_        │
 │                 │          │ candidates      │
-└─────────────────┘          └─────────────────┘
+└─────────────────┘          └────────┬────────┘
+         │                            │
+         │                            ▼ (async)
+         │                   ┌─────────────────┐
+         │                   │ Rebuild         │
+         │                   │ content_        │
+         │                   │ candidates      │
+         │                   └────────┬────────┘
+         │                            │
+         │                            ▼
+         │                   ┌─────────────────┐
+         │                   │ Cache new       │
+         │                   │ candidates      │
+         │                   └─────────────────┘
          │
          ▼
 ┌─────────────────┐

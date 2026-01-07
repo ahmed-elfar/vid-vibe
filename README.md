@@ -100,6 +100,29 @@ Access the H2 database console at: `http://localhost:8080/h2-console`
 - Username: `sa`
 - Password: (empty)
 
+## Health & Metrics (Actuator)
+
+| Endpoint | Description |
+|----------|-------------|
+| `/actuator/health` | Application health status |
+| `/actuator/info` | Application info |
+| `/actuator/metrics` | List all available metrics |
+
+**Cache metrics available:**
+- `/actuator/metrics/cache.gets?tag=cache:feed` — Feed cache hits/misses
+- `/actuator/metrics/cache.gets?tag=cache:tenant` — Tenant cache
+- `/actuator/metrics/cache.gets?tag=cache:userProfile` — User profile cache
+- `/actuator/metrics/cache.gets?tag=cache:contentCandidates` — Content cache
+
+Example:
+```bash
+# Health check
+curl http://localhost:8080/actuator/health
+
+# Feed cache stats
+curl "http://localhost:8080/actuator/metrics/cache.gets?tag=cache:feed"
+```
+
 ## Project Structure
 
 ```

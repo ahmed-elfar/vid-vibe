@@ -5,10 +5,12 @@ import com.xay.videos_recommender.exception.TenantNotFoundException;
 import com.xay.videos_recommender.model.entity.Tenant;
 import com.xay.videos_recommender.repository.TenantRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class TenantService {
@@ -18,7 +20,12 @@ public class TenantService {
 
     public Tenant getTenant(Long tenantId) {
         return appCache.getTenant(tenantId)
+                .map(tenant -> {
+                    log.debug("Tenant cache HIT for tenantId={}", tenantId);
+                    return tenant;
+                })
                 .orElseGet(() -> {
+                    log.debug("Tenant cache MISS for tenantId={}", tenantId);
                     Tenant tenant = tenantRepository.findById(tenantId)
                             .orElseThrow(() -> new TenantNotFoundException(tenantId));
                     appCache.putTenant(tenantId, tenant);
@@ -31,6 +38,7 @@ public class TenantService {
     }
 
     public void updateConfigVersion(Long tenantId) {
+        log.info("Updating config version for tenant {}", tenantId);
         appCache.evictTenant(tenantId);
         tenantRepository.findById(tenantId).ifPresent(tenant -> {
             tenant.setConfigVersion(tenant.getConfigVersion() + 1);

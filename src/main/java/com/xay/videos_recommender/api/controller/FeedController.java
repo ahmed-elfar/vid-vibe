@@ -3,6 +3,7 @@ package com.xay.videos_recommender.api.controller;
 import com.xay.videos_recommender.api.FeedApi;
 import com.xay.videos_recommender.model.dto.response.FeedResponse;
 import com.xay.videos_recommender.service.FeedService;
+import com.xay.videos_recommender.util.LogExecutionTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
@@ -19,6 +20,7 @@ public class FeedController implements FeedApi {
     private final FeedService feedService;
 
     @Override
+    @LogExecutionTime
     public ResponseEntity<FeedResponse> getFeed(
             Long tenantId,
             String userId,

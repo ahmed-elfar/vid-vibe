@@ -4,17 +4,24 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.xay.videos_recommender.cache.FeedCacheManager;
 import com.xay.videos_recommender.model.domain.CachedFeed;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.binder.cache.CaffeineCacheMetrics;
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class CaffeineFeedCacheManager implements FeedCacheManager {
+
+    private final MeterRegistry meterRegistry;
 
     @Value("${app.cache.feed.max-size}")
     private int feedMaxSize;
@@ -31,6 +38,9 @@ public class CaffeineFeedCacheManager implements FeedCacheManager {
                 .expireAfterWrite(feedExpireMinutes, TimeUnit.MINUTES)
                 .recordStats()
                 .build();
+
+        // Register cache with Micrometer for metrics
+        CaffeineCacheMetrics.monitor(meterRegistry, feedCache, "feed", Collections.emptyList());
 
         log.info("CaffeineFeedCacheManager initialized: feedMaxSize={}, feedExpireMinutes={}",
                 feedMaxSize, feedExpireMinutes);

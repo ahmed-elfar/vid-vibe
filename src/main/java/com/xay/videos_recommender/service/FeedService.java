@@ -51,6 +51,7 @@ public class FeedService {
         // 1. Check feature flag
         if (!tenantService.isPersonalizationEnabled(tenantId) ||
             !tenantService.isUserInRollout(tenantId, userId)) {
+            log.debug("Tenant {} user {} not in rollout, using fallback", tenantId, userId);
             return generateFallbackFeed(tenantId, limit, offset, "fallback", ifNoneMatch);
         }
 
@@ -59,11 +60,13 @@ public class FeedService {
         int candidatesVersion = contentService.getContentCandidatesVersion(tenantId);
         
         if (cachedFeed.isPresent()) {
+            log.debug("Feed cache HIT for tenant {} user {}", tenantId, userId);
             CachedFeed feed = cachedFeed.get();
             
             // Check if client's ETag matches (304 Not Modified scenario)
             // ETag includes cursor, so each page has unique ETag
             if (ETagUtil.matches(ifNoneMatch, candidatesVersion, feed.version(), offset)) {
+                log.debug("ETag matched, returning 304 Not Modified");
                 return Optional.empty();
             }
             
@@ -71,12 +74,13 @@ public class FeedService {
             String etag = ETagUtil.generate(candidatesVersion, feed.version(), offset);
             return Optional.of(buildResponseFromCachedFeed(feed, limit, offset, etag));
         }
+        log.debug("Feed cache MISS for tenant {} user {}", tenantId, userId);
 
         // 3. Get user signals (cold-start check)
         UserSignals userSignals = userProfileService.getUserSignals(tenantId, userId);
         
         if (userSignals.watchCount() == 0) {
-            // Cold-start user - return non-personalized feed
+            log.debug("Cold-start user detected for tenant {} user {}", tenantId, userId);
             return generateFallbackFeed(tenantId, limit, offset, "cold_start", ifNoneMatch);
         }
 
@@ -84,7 +88,7 @@ public class FeedService {
         List<ContentCandidate> candidates = contentService.getContentCandidates(tenantId);
         
         if (candidates.isEmpty()) {
-            //Should we use the demographic information and get content from other tenants?
+            log.warn("No content candidates for tenant {}", tenantId);
             return Optional.of(generateEmptyFeed("no_content"));
         }
 
@@ -108,6 +112,8 @@ public class FeedService {
                 .items(feedItems)
                 .build();
         feedCacheManager.putFeed(tenantId, userId, newFeed);
+        log.debug("Generated personalized feed for tenant {} user {} with {} items", 
+                tenantId, userId, feedItems.size());
 
         // 8. Return paginated response
         String etag = ETagUtil.generate(candidatesVersion, feedVersion, offset);

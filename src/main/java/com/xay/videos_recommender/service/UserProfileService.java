@@ -21,12 +21,16 @@ public class UserProfileService {
     private final UserProfileMapper userProfileMapper;
 
     public Optional<UserProfile> getProfile(Long tenantId, String userId) {
-        return appCache.getUserProfile(tenantId, userId)
-                .or(() -> {
-                    Optional<UserProfile> profile = userProfileRepository.findByTenantIdAndHashedUserId(tenantId, userId);
-                    profile.ifPresent(p -> appCache.putUserProfile(tenantId, userId, p));
-                    return profile;
-                });
+        Optional<UserProfile> cached = appCache.getUserProfile(tenantId, userId);
+        if (cached.isPresent()) {
+            log.debug("User profile cache HIT for tenant {} user {}", tenantId, userId);
+            return cached;
+        }
+        
+        log.debug("User profile cache MISS for tenant {} user {}", tenantId, userId);
+        Optional<UserProfile> profile = userProfileRepository.findByTenantIdAndHashedUserId(tenantId, userId);
+        profile.ifPresent(p -> appCache.putUserProfile(tenantId, userId, p));
+        return profile;
     }
 
     public UserSignals getUserSignals(Long tenantId, String userId) {
