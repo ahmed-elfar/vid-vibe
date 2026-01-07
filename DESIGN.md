@@ -394,7 +394,7 @@ Returned when `If-None-Match` header matches current ETag.
 | Personalization disabled | 200 | `fallback` | Top N from content_candidates |
 | User not in rollout | 200 | `fallback` | Top N from content_candidates |
 | Cold-start (no profile) | 200 | `cold_start` | Top N from content_candidates |
-| Timeout (> 550ms) | 200 | `timeout_fallback` | Top N from content_candidates |
+| Timeout (> 600ms) | 200 | `timeout_fallback` | Top N from content_candidates |
 | Redis unavailable | 200 | `fallback` | Query PostgreSQL directly |
 
 #### Error Responses
