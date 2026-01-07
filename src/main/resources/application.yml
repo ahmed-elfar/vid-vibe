@@ -28,6 +28,13 @@ spring:
 
 server:
   port: 8080
+  max-http-request-header-size: 16KB
+  tomcat:
+    max-http-form-post-size: 128KB    # Limit request body size
+
+spring.servlet.multipart:
+  max-request-size: 100KB
+  max-file-size: 100KB
 
 # OpenAPI / Swagger configuration
 springdoc:
@@ -53,6 +60,10 @@ app:
   feed:
     ttl-hint-seconds: 30
     timeout-ms: 600
+  worker:
+    event-aggregation:
+      poll-interval-ms: 500    # For testing: pull events every 500ms
+      batch-size: 50           # Max events per batch
   cache:
     tenant:
       max-size: 120

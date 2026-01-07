@@ -4,7 +4,14 @@ import com.xay.videos_recommender.model.dto.request.EventItem;
 
 import java.util.List;
 
+/**
+ * Interface for archiving raw events.
+ * In production: S3, GCS, or similar object storage.
+ */
 public interface ArchiveStorage {
 
-    void archive(Long tenantId, List<EventItem> events);
+    /**
+     * Archives a batch of events for long-term storage.
+     */
+    void archive(List<EventItem> events);
 }

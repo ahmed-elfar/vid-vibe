@@ -7,13 +7,20 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
+/**
+ * Stub S3 implementation for demo purposes.
+ * In production: actual S3 SDK integration.
+ */
 @Slf4j
 @Component
 public class S3Storage implements ArchiveStorage {
 
     @Override
-    public void archive(Long tenantId, List<EventItem> events) {
+    public void archive(List<EventItem> events) {
+        if (events.isEmpty()) {
+            return;
+        }
         // Stub implementation - just log
-        log.info("Archiving {} events for tenant {} (stub - no actual S3 upload)", events.size(), tenantId);
+        log.debug("Archiving {} events to S3 (stub - no actual upload)", events.size());
     }
 }
